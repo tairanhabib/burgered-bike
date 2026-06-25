@@ -1,0 +1,21 @@
+name: Supabase keep-alive
+
+# Pings the public gallery view once a day so the free Supabase
+# project never hits the 7-day inactivity pause. A daily 1-second
+# curl uses negligible GitHub Actions minutes (free on public repos).
+
+on:
+  schedule:
+    - cron: '0 12 * * *'    # 12:00 UTC every day
+  workflow_dispatch:         # also lets you run it by hand from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          curl --fail --silent --show-error \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/sightings_public?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
