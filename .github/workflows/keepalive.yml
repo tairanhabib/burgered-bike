@@ -1,13 +1,16 @@
 name: Supabase keep-alive
 
-# Pings the public gallery view once a day so the free Supabase
-# project never hits the 7-day inactivity pause. A daily 1-second
-# curl uses negligible GitHub Actions minutes (free on public repos).
+# Pings the public gallery view daily so the free Supabase project never hits
+# the 7-day inactivity pause. The URL + publishable key are public (the
+# publishable key is safe to expose — RLS guards the data), so NO secrets are
+# needed. If this ever fails, the logged HTTP status tells you why:
+#   404 -> run supabase-setup.sql (the sightings_public view is missing)
+#   401 -> key/permission issue
 
 on:
   schedule:
-    - cron: '0 12 * * *'    # 12:00 UTC every day
-  workflow_dispatch:         # also lets you run it by hand from the Actions tab
+    - cron: '0 12 * * *'    # 12:00 UTC daily
+  workflow_dispatch:         # run manually from the Actions tab
 
 jobs:
   ping:
@@ -15,7 +18,15 @@ jobs:
     steps:
       - name: Ping Supabase
         run: |
-          curl --fail --silent --show-error \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/sightings_public?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          URL="https://nykjrqgvaljdgevfqyls.supabase.co"
+          KEY="sb_publishable_nDMnxt9fCZZsJsx-96qpRw_wFIvi9fe"
+          CODE=$(curl -s -o /tmp/body -w "%{http_code}" \
+            "$URL/rest/v1/sightings_public?select=id&limit=1" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
+          echo "HTTP $CODE"; cat /tmp/body; echo
+          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 400 ]; then
+            echo "Keep-alive OK"
+          else
+            echo "::error::Ping returned HTTP $CODE — see the comment at the top of this file."
+            exit 1
+          fi
