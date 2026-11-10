@@ -1,62 +1,74 @@
 # The Burger Bike 🍔🚲
 
-A blue bike with a burger bell, loose in Boston. People scan a QR code on the
-bike and ring in a photo of where they spotted it. Live map, sighting counter,
-"guess where it'll be," badges, and a monthly gift-card draw.
+A blue bike with a burger for a bell, left loose in Boston as a public scavenger hunt. A QR code on the bike opens this site, where whoever finds it uploads a photo and the sighting lands on a live map of the city.
 
-Stack: React + Vite + Supabase (Storage + Postgres) + Vercel.
+**Live site:** https://burgered-bike.vercel.app
 
----
+![The Burger Bike home page with sighting stats and giveaway banner](docs/screenshot.jpg)
 
-## Quick start
+## Features
 
-You only need **Node.js** (v18+) installed on your machine. Check with `node -v`.
-If it errors, install the LTS build from https://nodejs.org. Everything else
-installs into this folder.
+- **Photo sightings from a phone.** Scan, snap, submit. Photos are resized and compressed in the browser before upload, so they send quickly on cellular data.
+- **A hand-built map of Boston.** No map library or tiles: an SVG drawn from real coordinates with one shared projection, showing the Charles, the harbor, the four T lines, colleges, landmarks, and every Bluebikes dock pulled live from the public [GBFS feed](https://gbfs.bluebikes.com/gbfs/en/station_information.json). Sightings are pinned by neighborhood and joined into a trail.
+- **Moderation queue.** New sightings are hidden until approved, so nothing a stranger uploads appears on the public board unreviewed.
+- **Badges** for repeat spotters (cross the river, spot it after midnight), stored on the visitor's device.
+- **Monthly draw.** An optional email enters the spotter into a gift-card draw.
 
-### 1. Set up Supabase
-1. Create a free project at https://supabase.com
-2. SQL Editor → paste in `supabase-setup.sql` → Run
-3. Settings → API → copy your **Project URL** and **anon public** key
+## How it works
 
-### 2. Run it locally
-Your Supabase URL and publishable key are already baked into
-`src/lib/supabase.js`, so no `.env.local` is needed.
+```
+Phone ──► React app (Vercel) ──► Supabase Storage   (photo)
+                             ──► Supabase Postgres  (sighting row, approved = false)
+
+Board ◄── sightings_public view (approved rows only, no email column)
+```
+
+There is no backend server. The browser talks to Supabase directly with a publishable key, and the database enforces the rules ([`supabase-setup.sql`](supabase-setup.sql)):
+
+| Rule | How it is enforced |
+|---|---|
+| Anyone can submit a sighting | Row Level Security `insert` policy for the anonymous role |
+| Nobody can read raw submissions | No `select` policy on the `sightings` table |
+| The board shows approved sightings only | It reads the `sightings_public` view, filtered to `approved = true` |
+| Emails are never exposed | The view leaves the `email` column out |
+
+That is why the Supabase URL and publishable key are committed in [`src/lib/supabase.js`](src/lib/supabase.js): they are designed to ship in client code, and they grant only what the policies above allow.
+
+## Run it locally
+
+Needs Node 18+.
+
 ```bash
 npm install
 npm run dev
 ```
-Open http://localhost:5173 — a submit should land in your Supabase Table Editor.
-New sightings come in unapproved, so they won't show on the board until you
-approve them (flip the `approved` checkbox in the Table Editor).
 
-### 3. Push to GitHub + keep-alive
-Create a repo and push (this includes `.github/workflows/keepalive.yml`, which
-pings Supabase daily so the free project never pauses). In the repo:
-Settings → Secrets and variables → Actions → add `SUPABASE_URL` and
-`SUPABASE_ANON_KEY` (same values). Run the workflow once from the Actions tab to
-confirm it passes.
+Open http://localhost:5173. It uses the project's Supabase instance by default.
 
-### 4. Deploy on Vercel
-Import the repo at https://vercel.com and deploy — no environment variables
-needed, since the keys are baked into the source. (If you ever rotate the keys,
-add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Vercel and they'll
-override the defaults.)
+To use your own: create a free project at [supabase.com](https://supabase.com), run `supabase-setup.sql` in the SQL Editor, then copy `.env.local.example` to `.env.local` and fill in your project URL and publishable key.
 
-### 5. Domain
-Buy a name at Cloudflare Registrar or Porkbun (flat pricing). In Vercel:
-Settings → Domains → add it and follow the DNS instructions. SSL is automatic.
+## Project layout
 
-### 6. QR code
-```bash
-npx qrcode "https://yourdomain.com" -o bike.png
-```
-Print ~2in, laminate, mount on the bike.
+| File | Role |
+|---|---|
+| [`src/BurgerBike.jsx`](src/BurgerBike.jsx) | The whole app: map projection and data, upload flow, badges, styles |
+| [`src/lib/supabase.js`](src/lib/supabase.js) | Supabase client |
+| [`supabase-setup.sql`](supabase-setup.sql) | Table, policies, public view, storage bucket. Safe to re-run |
+| [`.github/workflows/keepalive.yml`](.github/workflows/keepalive.yml) | Daily ping so the free Supabase project isn't paused for inactivity |
 
----
+## Operating it
 
-## Before launch
-- Set `RELEASE_DATE` in `src/BurgerBike.jsx` to the day you let the bike loose.
-- Approve sightings as they come in.
-- The monthly draw query is at the bottom of `supabase-setup.sql`.
-- If you ever upgrade off the free tiers, keep spend caps on.
+- **Approve a sighting:** tick `approved` on its row in the Supabase Table Editor.
+- **Monthly draw:** the query is at the bottom of `supabase-setup.sql`.
+- **Keep-alive:** GitHub turns off scheduled workflows after 60 days without a commit. If the board stops loading, re-enable the workflow in the Actions tab and restore the project in the Supabase dashboard.
+- **QR code:** `npx qrcode "https://burgered-bike.vercel.app" -o bike.png`
+
+## Known limitations
+
+- Sightings are pinned to the neighborhood named in the form, not to GPS coordinates.
+- The "guess where it'll be next" poll is a front-end prototype: its starting tallies are placeholders and votes are not saved.
+- Badges live in `localStorage`, so they don't follow a spotter across devices.
+
+## Stack
+
+React 18 · Vite · Supabase (Postgres, Storage, Row Level Security) · Vercel · GitHub Actions

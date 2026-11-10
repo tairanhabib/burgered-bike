@@ -204,7 +204,9 @@ function labelAt(lat,lon){ const [x,y]=project(lat,lon); return { x:x.toFixed(1)
 export default function BurgerBike(){
   const [sightings,setSightings]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [myEntries,setMyEntries]=useState([]);
+  // Badges are per-device: this visitor's own sightings, kept in localStorage (no accounts).
+  const [myEntries,setMyEntries]=useState(()=>{ try{ return JSON.parse(localStorage.getItem("bb-entries"))||[]; }catch(e){ return []; } });
+  useEffect(()=>{ try{ localStorage.setItem("bb-entries",JSON.stringify(myEntries)); }catch(e){} },[myEntries]);
   const [preview,setPreview]=useState(null);
   const [file,setFile]=useState(null);
   const [where,setWhere]=useState("");
